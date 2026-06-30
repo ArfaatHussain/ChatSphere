@@ -36,16 +36,6 @@ const CHATS = [
     online: true,
     type: 'dm',
   },
-  // {
-  //   id: '2',
-  //   name: 'Design Team',
-  //   avatar: 'https://i.pravatar.cc/150?img=12',
-  //   lastMessage: 'James: New Figma link is ready',
-  //   time: '9:15 AM',
-  //   unread: 12,
-  //   online: false,
-  //   type: 'group',
-  // },
   {
     id: '3',
     name: 'Alex Chen',
@@ -57,16 +47,6 @@ const CHATS = [
     type: 'dm',
     sent: true,
   },
-  // {
-  //   id: '4',
-  //   name: 'Project Phoenix 🔥',
-  //   avatar: 'https://i.pravatar.cc/150?img=60',
-  //   lastMessage: 'Nina: Deployment is live!',
-  //   time: 'Yesterday',
-  //   unread: 5,
-  //   online: false,
-  //   type: 'group',
-  // },
   {
     id: '5',
     name: 'Mia Williams',

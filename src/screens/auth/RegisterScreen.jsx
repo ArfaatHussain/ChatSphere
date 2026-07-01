@@ -30,7 +30,7 @@ const RegisterScreen = ({ navigation }) => {
     if (!email.trim()) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Enter a valid email';
     if (!password.trim()) newErrors.password = 'Password is required';
-    else if (password.length < 6) newErrors.password = 'Minimum 6 characters';
+    else if (password.length < 4) newErrors.password = 'Minimum 4 characters';
     if (!confirmPassword.trim()) newErrors.confirmPassword = 'Please confirm your password';
     else if (password !== confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
     setErrors(newErrors);

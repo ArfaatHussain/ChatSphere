@@ -13,6 +13,10 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
+import { supabase } from '../../db/supabase';
+import bcrypt from 'bcryptjs';
+import { StorageKeys, getItem, setItem  } from '../../utils/storage';
+import toast from 'react-native-simple-toast';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -34,10 +38,37 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     if (!validate()) return;
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // 1. Fetch the user row by email
+      const { data: user, error: fetchError } = await supabase
+        .from('users')
+        .select('id, username, full_name, email, avatar_url, password')
+        .eq('email', email.trim())
+        .single();
+
+      console.log("Fetched User: ", user)  
+
+      if (fetchError || !user) {
+        throw new Error('User not found.');
+      }
+
+      // 2. Compare entered password against stored hash
+      const passwordMatches = bcrypt.compareSync(password, user?.password);
+
+      if (!passwordMatches) {
+        throw new Error('Invalid email or password.');
+      }
+
+      const { password_hash, ...safeUser } = user;
+
+      setItem(StorageKeys.USER_DATA, safeUser);
+
       navigation.replace('main');
-    }, 1500);
+    } catch (err) {
+      toast.show(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

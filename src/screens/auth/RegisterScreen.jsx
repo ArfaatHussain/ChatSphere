@@ -17,6 +17,9 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
 import { supabase } from '../../db/supabase';
+import { uploadImageToCloudinary } from '../../utils/uploadToCloudinary';
+import bcrypt from 'bcryptjs';
+import toast from 'react-native-simple-toast';
 
 const RegisterScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
@@ -30,6 +33,8 @@ const RegisterScreen = ({ navigation }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(null);
 
   const validate = () => {
     const newErrors = {};
@@ -56,19 +61,27 @@ const RegisterScreen = ({ navigation }) => {
         maxHeight: 800,
         includeBase64: false,
       },
-      response => {
+      async response => {
         if (response.didCancel) return;
         if (response.errorCode) {
           Alert.alert('Error', response.errorMessage || 'Could not open gallery');
           return;
         }
         const asset = response.assets && response.assets[0];
-        if (asset) {
-          setAvatar({
-            uri: asset.uri,
-            type: asset.type,
-            fileName: asset.fileName || `avatar_${Date.now()}.jpg`,
-          });
+        if (!asset) return;
+
+        // show local preview immediately
+        setAvatar({ uri: asset.uri });
+        setUploadingAvatar(true);
+
+        try {
+          const url = await uploadImageToCloudinary(asset);
+          setAvatarUrl(url);
+        } catch (err) {
+          Alert.alert('Upload failed', 'Could not upload avatar. Please try again.');
+          setAvatar(null);
+        } finally {
+          setUploadingAvatar(false);
         }
       },
     );
@@ -76,11 +89,39 @@ const RegisterScreen = ({ navigation }) => {
 
   const handleRegister = async () => {
     if (!validate()) return;
+    if (uploadingAvatar) {
+      Alert.alert('Please wait', 'Avatar is still uploading.');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const salt = bcrypt.genSaltSync(10);
+      const passwordHash = bcrypt.hashSync(password, salt);
+
+      const { error: profileError } = await supabase.from('users').insert({
+        username: username.trim(),
+        email: email.trim(),
+        full_name: fullName.trim(),
+        bio: bio.trim() || null,
+        avatar_url: avatarUrl || null,
+        password: passwordHash,
+      });
+
+      if (profileError) {
+        if (profileError.code === '23505') {
+          throw new Error('That username or email is already taken.');
+        }
+        throw profileError;
+      }
+
       navigation.replace('login');
-    }, 1500);
+    } catch (err) {
+      // console.error('Registration error:', err.message);
+      toast.show(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderInput = ({
@@ -250,7 +291,8 @@ const RegisterScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[styles.registerButton, loading && styles.buttonDisabled]}
               onPress={handleRegister}
-              disabled={loading}>
+              disabled={loading || uploadingAvatar}
+            >
               {loading ? (
                 <ActivityIndicator color={Colors.white} />
               ) : (

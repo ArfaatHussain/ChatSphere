@@ -10,13 +10,20 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
+import { supabase } from '../../db/supabase';
 
 const RegisterScreen = ({ navigation }) => {
+  const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [bio, setBio] = useState('');
+  const [avatar, setAvatar] = useState(null); // { uri, type, fileName }
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -26,6 +33,9 @@ const RegisterScreen = ({ navigation }) => {
 
   const validate = () => {
     const newErrors = {};
+    if (!username.trim()) newErrors.username = 'Username is required';
+    else if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim()))
+      newErrors.username = '3-20 chars, letters/numbers/underscore only';
     if (!fullName.trim()) newErrors.fullName = 'Full name is required';
     if (!email.trim()) newErrors.email = 'Email is required';
     else if (!/\S+@\S+\.\S+/.test(email)) newErrors.email = 'Enter a valid email';
@@ -37,12 +47,39 @@ const RegisterScreen = ({ navigation }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handlePickAvatar = () => {
+    launchImageLibrary(
+      {
+        mediaType: 'photo',
+        quality: 0.8,
+        maxWidth: 800,
+        maxHeight: 800,
+        includeBase64: false,
+      },
+      response => {
+        if (response.didCancel) return;
+        if (response.errorCode) {
+          Alert.alert('Error', response.errorMessage || 'Could not open gallery');
+          return;
+        }
+        const asset = response.assets && response.assets[0];
+        if (asset) {
+          setAvatar({
+            uri: asset.uri,
+            type: asset.type,
+            fileName: asset.fileName || `avatar_${Date.now()}.jpg`,
+          });
+        }
+      },
+    );
+  };
+
   const handleRegister = async () => {
     if (!validate()) return;
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      navigation.replace('Main');
+      navigation.replace('login');
     }, 1500);
   };
 
@@ -57,13 +94,24 @@ const RegisterScreen = ({ navigation }) => {
     toggleSecure,
     keyboardType,
     autoCapitalize,
+    multiline,
   }) => (
     <View style={styles.inputGroup}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.inputContainer, errors[errorKey] && styles.inputError]}>
-        <Icon name={icon} size={20} color={Colors.grey} style={styles.inputIcon} />
+      <View
+        style={[
+          styles.inputContainer,
+          multiline && styles.inputContainerMultiline,
+          errors[errorKey] && styles.inputError,
+        ]}>
+        <Icon
+          name={icon}
+          size={20}
+          color={Colors.grey}
+          style={[styles.inputIcon, multiline && styles.inputIconMultiline]}
+        />
         <TextInput
-          style={styles.input}
+          style={[styles.input, multiline && styles.inputMultiline]}
           placeholder={placeholder}
           placeholderTextColor={Colors.grey}
           value={value}
@@ -74,6 +122,9 @@ const RegisterScreen = ({ navigation }) => {
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType || 'default'}
           autoCapitalize={autoCapitalize || 'sentences'}
+          multiline={multiline}
+          numberOfLines={multiline ? 3 : 1}
+          textAlignVertical={multiline ? 'top' : 'center'}
         />
         {toggleSecure && (
           <TouchableOpacity onPress={toggleSecure}>
@@ -112,6 +163,35 @@ const RegisterScreen = ({ navigation }) => {
             <Text style={styles.cardTitle}>Create Account</Text>
             <Text style={styles.cardSubtitle}>Join the conversation today</Text>
 
+            {/* Avatar Picker */}
+            <View style={styles.avatarSection}>
+              <TouchableOpacity onPress={handlePickAvatar} style={styles.avatarWrapper}>
+                {avatar ? (
+                  <Image source={{ uri: avatar.uri }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Icon name="account-outline" size={36} color={Colors.grey} />
+                  </View>
+                )}
+                <View style={styles.avatarEditBadge}>
+                  <Icon name="camera" size={14} color={Colors.white} />
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.avatarHelperText}>
+                {avatar ? 'Tap to change photo' : 'Add a profile photo'}
+              </Text>
+            </View>
+
+            {renderInput({
+              label: 'Username',
+              value: username,
+              onChangeText: setUsername,
+              placeholder: 'Choose a username',
+              icon: 'at',
+              errorKey: 'username',
+              autoCapitalize: 'none',
+            })}
+
             {renderInput({
               label: 'Full Name',
               value: fullName,
@@ -130,6 +210,16 @@ const RegisterScreen = ({ navigation }) => {
               errorKey: 'email',
               keyboardType: 'email-address',
               autoCapitalize: 'none',
+            })}
+
+            {renderInput({
+              label: 'Bio',
+              value: bio,
+              onChangeText: setBio,
+              placeholder: 'Tell us a little about yourself (optional)',
+              icon: 'text-account',
+              errorKey: 'bio',
+              multiline: true,
             })}
 
             {renderInput({
@@ -233,6 +323,49 @@ const styles = StyleSheet.create({
     color: Colors.grey,
     marginBottom: Spacing.xl,
   },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  avatarWrapper: {
+    width: 90,
+    height: 90,
+    borderRadius: BorderRadius.full,
+    position: 'relative',
+  },
+  avatarImage: {
+    width: 90,
+    height: 90,
+    borderRadius: BorderRadius.full,
+  },
+  avatarPlaceholder: {
+    width: 90,
+    height: 90,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1.5,
+    borderColor: Colors.lightGrey,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.white,
+  },
+  avatarHelperText: {
+    fontSize: FontSizes.xs,
+    color: Colors.grey,
+    marginTop: Spacing.xs,
+  },
   inputGroup: {
     marginBottom: Spacing.md,
   },
@@ -252,16 +385,27 @@ const styles = StyleSheet.create({
     height: 52,
     backgroundColor: '#FAFAFA',
   },
+  inputContainerMultiline: {
+    height: 80,
+    alignItems: 'flex-start',
+    paddingVertical: Spacing.sm,
+  },
   inputError: {
     borderColor: Colors.error,
   },
   inputIcon: {
     marginRight: Spacing.sm,
   },
+  inputIconMultiline: {
+    marginTop: 2,
+  },
   input: {
     flex: 1,
     fontSize: FontSizes.md,
     color: Colors.darkBackground,
+  },
+  inputMultiline: {
+    height: '100%',
   },
   errorText: {
     fontSize: FontSizes.xs,

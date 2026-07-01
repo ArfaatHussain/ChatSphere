@@ -22,7 +22,7 @@ export const getItem = (key) => {
 };
 
 export const removeItem = (key) => {
-  storage.delete(key);
+  storage.remove(key);
 };
 
 export const clearAll = () => {

@@ -96,8 +96,16 @@ const ProfileScreen = ({ navigation }) => {
           <View style={styles.divider} />
 
           <TouchableOpacity style={styles.actionRow}>
-            <Icon name="cog-outline" size={20} color={Colors.darkGrey} />
-            <Text style={styles.actionText}>Settings</Text>
+            <Icon name="lock-outline" size={20} color={Colors.darkGrey} />
+            <Text style={styles.actionText}>Privacy & Security</Text>
+            <Icon name="chevron-right" size={20} color={Colors.grey} />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity style={styles.actionRow}>
+            <Icon name="theme-light-dark" size={20} color={Colors.darkGrey} />
+            <Text style={styles.actionText}>Appearance</Text>
             <Icon name="chevron-right" size={20} color={Colors.grey} />
           </TouchableOpacity>
         </View>

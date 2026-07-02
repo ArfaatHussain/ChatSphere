@@ -12,9 +12,14 @@ const App = () => {
     <SafeAreaProvider
       style={{ flex: 1 }}
     >
-      <StatusBar barStyle={'dark-content'} />
       <NavigationContainer>
         <SafeAreaView style={{ flex: 1 }} >
+          <StatusBar
+            animated={true}
+            barStyle={'dark-content'}
+            showHideTransition={true}
+            hidden={false}
+          />
           <RootNavigator />
         </SafeAreaView>
       </NavigationContainer>

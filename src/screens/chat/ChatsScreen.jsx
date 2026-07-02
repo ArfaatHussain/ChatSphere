@@ -9,76 +9,15 @@ import {
   StatusBar,
   Image,
   ScrollView,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
+import useConversations from '../../hooks/useConversations';
+import { supabase } from '../../db/supabase';
+import { getItem, StorageKeys } from '../../utils/storage';
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const ACTIVE_USERS = [
-  { id: '1', name: 'You',   avatar: 'https://i.pravatar.cc/150?img=1',  isYou: true },
-  { id: '2', name: 'Sara',  avatar: 'https://i.pravatar.cc/150?img=5'   },
-  { id: '3', name: 'James', avatar: 'https://i.pravatar.cc/150?img=12'  },
-  { id: '4', name: 'Mia',   avatar: 'https://i.pravatar.cc/150?img=47'  },
-  { id: '5', name: 'Alex',  avatar: 'https://i.pravatar.cc/150?img=33'  },
-  { id: '6', name: 'Nina',  avatar: 'https://i.pravatar.cc/150?img=44'  },
-  { id: '7', name: 'Omar',  avatar: 'https://i.pravatar.cc/150?img=68'  },
-];
-
-const CHATS = [
-  {
-    id: '1',
-    name: 'Sara Johnson',
-    avatar: 'https://i.pravatar.cc/150?img=5',
-    lastMessage: 'Sounds great! See you then 👋',
-    time: '9:41 AM',
-    unread: 3,
-    online: true,
-    type: 'dm',
-  },
-  {
-    id: '3',
-    name: 'Alex Chen',
-    avatar: 'https://i.pravatar.cc/150?img=33',
-    lastMessage: 'Can you review the PR?',
-    time: 'Yesterday',
-    unread: 0,
-    online: true,
-    type: 'dm',
-    sent: true,
-  },
-  {
-    id: '5',
-    name: 'Mia Williams',
-    avatar: 'https://i.pravatar.cc/150?img=47',
-    lastMessage: '🎵 Voice message · 0:24',
-    time: 'Mon',
-    unread: 1,
-    online: false,
-    type: 'dm',
-  },
-  {
-    id: '6',
-    name: 'Omar Hassan',
-    avatar: 'https://i.pravatar.cc/150?img=68',
-    lastMessage: 'You: On it, give me 10 mins',
-    time: 'Mon',
-    unread: 0,
-    online: true,
-    type: 'dm',
-    sent: true,
-  },
-  {
-    id: '7',
-    name: 'Nina Patel',
-    avatar: 'https://i.pravatar.cc/150?img=44',
-    lastMessage: 'Thanks! That helped a lot 🙏',
-    time: 'Sun',
-    unread: 0,
-    online: false,
-    type: 'dm',
-  },
-];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -103,12 +42,29 @@ const ActiveUserBubble = ({ user }) => (
 const ChatItem = ({ item, onPress }) => {
   const hasUnread = item.unread > 0;
 
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short' });
+    return date.toLocaleDateString([], { day: '2-digit', month: 'short' });
+  };
+
   return (
-    <TouchableOpacity style={styles.chatItem} onPress={onPress} activeOpacity={0.7}>
-      {/* Avatar */}
+    <TouchableOpacity style={[styles.chatItem, { backgroundColor: Colors.background }]} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.avatarWrapper}>
-        <Image source={{ uri: item.avatar }} style={styles.avatar} />
-        {item.online && <View style={styles.onlineDot} />}
+        {item.avatar_url ? (
+          <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
+        ) : (
+          <View style={[styles.avatar, styles.avatarFallback]}>
+            <Icon name={item.type === 'group' ? 'account-group' : 'account'} size={24} color={Colors.white} />
+          </View>
+        )}
+        {item.is_online && <View style={styles.onlineDot} />}
         {item.type === 'group' && (
           <View style={styles.groupBadge}>
             <Icon name="account-group" size={9} color={Colors.white} />
@@ -116,14 +72,13 @@ const ChatItem = ({ item, onPress }) => {
         )}
       </View>
 
-      {/* Content */}
       <View style={styles.chatContent}>
         <View style={styles.chatHeader}>
           <Text style={[styles.chatName, hasUnread && styles.chatNameBold]} numberOfLines={1}>
             {item.name}
           </Text>
           <Text style={[styles.chatTime, hasUnread && styles.chatTimeUnread]}>
-            {item.time}
+            {formatTime(item.last_message_at)}
           </Text>
         </View>
         <View style={styles.chatFooter}>
@@ -131,10 +86,8 @@ const ChatItem = ({ item, onPress }) => {
             {item.sent && (
               <Icon name="check-all" size={14} color={Colors.primary} style={{ marginRight: 3 }} />
             )}
-            <Text
-              style={[styles.lastMessage, hasUnread && styles.lastMessageBold]}
-              numberOfLines={1}>
-              {item.lastMessage}
+            <Text style={[styles.lastMessage, hasUnread && styles.lastMessageBold]} numberOfLines={1}>
+              {item.last_message || 'No messages yet'}
             </Text>
           </View>
           {hasUnread ? (
@@ -155,13 +108,25 @@ const ChatItem = ({ item, onPress }) => {
 const ChatsScreen = ({ navigation }) => {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const user = getItem(StorageKeys.USER_DATA);
+
+
+  const { conversations, loading, refetch } = useConversations(user?.id);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
+
 
   const filters = ['All', 'Unread'];
 
-  const filteredChats = CHATS.filter(chat => {
-    const matchesSearch = chat.name.toLowerCase().includes(search.toLowerCase());
+  const filteredChats = conversations.filter(chat => {
+    const matchesSearch = chat.name?.toLowerCase().includes(search.toLowerCase());
     if (activeFilter === 'Unread') return matchesSearch && chat.unread > 0;
-    if (activeFilter === 'Groups') return matchesSearch && chat.type === 'group';
     return matchesSearch;
   });
 
@@ -222,20 +187,6 @@ const ChatsScreen = ({ navigation }) => {
         ))}
       </View>
 
-      {/* ── Active Users / Stories ── */}
-      {activeFilter === 'All' && !search && (
-        <View style={styles.activeSection}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.activeScrollContent}>
-            {ACTIVE_USERS.map(user => (
-              <ActiveUserBubble key={user.id} user={user} />
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
       {/* ── Section Label ── */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>
@@ -247,7 +198,11 @@ const ChatsScreen = ({ navigation }) => {
       </View>
 
       {/* ── Chat List ── */}
-      {filteredChats.length === 0 ? (
+      {loading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : filteredChats.length === 0 ? (
         <View style={styles.emptyState}>
           <Icon name="chat-sleep-outline" size={56} color={Colors.lightGrey} />
           <Text style={styles.emptyTitle}>No conversations found</Text>
@@ -260,12 +215,20 @@ const ChatsScreen = ({ navigation }) => {
           renderItem={({ item }) =>
             <ChatItem
               item={item}
-              onPress={() => navigation.navigate('Chat', { chat: item })}
+              onPress={() => navigation.navigate('Chat', { conversation: item })}
             />
           }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
+          }
         />
       )}
 
@@ -287,6 +250,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
 
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarFallback: {
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   // Header
   header: {
     flexDirection: 'row',

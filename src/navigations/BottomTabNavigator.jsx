@@ -1,7 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import ChatsScreen from '../screens/chat/ChatsScreen';
+import Chats from '../screens/chat/Chats';
 import GroupsScreen from '../screens/groups/GroupsScreen';
 import CallsScreen from '../screens/calls/CallsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
@@ -33,7 +33,7 @@ const BottomTabNavigator = () => {
           return <Icon name={icons[route.name]} size={size} color={color} />;
         },
       })}>
-      <Tab.Screen name="chats" component={ChatsScreen} />
+      <Tab.Screen name="chats" component={Chats} />
       <Tab.Screen name="groups" component={GroupsScreen} />
       <Tab.Screen name="calls" component={CallsScreen} />
       <Tab.Screen name="profile" component={ProfileScreen} />

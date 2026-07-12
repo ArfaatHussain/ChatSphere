@@ -105,7 +105,7 @@ const ChatItem = ({ item, onPress }) => {
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
-const ChatsScreen = ({ navigation }) => {
+const Chats = ({ navigation }) => {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
@@ -601,4 +601,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChatsScreen;
+export default Chats;

@@ -18,6 +18,7 @@ import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme/index';
 import useMessages from '../../hooks/useMessages';
+import { sendMessage } from '../../services/messageService';
 import { getItem, StorageKeys } from '../../utils/storage';
 import { fetchDirectChatUser } from '../../services/conversationService';
 
@@ -58,15 +59,34 @@ export default function ChatScreen({ navigation, route }) {
         return `Last seen ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
     };
 
+    const handleSend = async () => {
+        const trimmed = inputText.trim();
+        if (!trimmed) return;
+
+        setInputText(''); // clear immediately for a snappy feel
+
+        try {
+            await sendMessage({
+                conversationId: conversation.id,
+                senderId: currentUserId,
+                message: trimmed,
+                messageType: 'text',
+            });
+        } catch (err) {
+            console.error('Failed to send message:', err);
+            setInputText(trimmed); // restore text if the send failed
+        }
+    };
+
     return (
         <KeyboardAvoidingView
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                <View style={{flex:1}} >
+                <View style={{ flex: 1 }} >
 
-             
+
                     <View style={styles.header}>
                         <TouchableOpacity style={styles.iconBtn}
                             onPress={() => navigation.goBack()}
@@ -143,11 +163,15 @@ export default function ChatScreen({ navigation, route }) {
                             <Feather name="mic" size={24} color={Colors.grey} />
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.sendBtn}>
+                        <TouchableOpacity
+                            style={[styles.sendBtn, !inputText.trim() && { opacity: 0.5 }]}
+                            onPress={handleSend}
+                            disabled={!inputText.trim()}
+                        >
                             <Feather name="send" size={18} color={Colors.white} />
                         </TouchableOpacity>
                     </View>
-                   </View>
+                </View>
             </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
     );

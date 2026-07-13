@@ -18,27 +18,6 @@ import useConversations from '../../hooks/useDirectConversations';
 import { supabase } from '../../db/supabase';
 import { getItem, StorageKeys } from '../../utils/storage';
 
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-const ActiveUserBubble = ({ user }) => (
-  <TouchableOpacity style={styles.activeUserItem}>
-    <View style={styles.activeAvatarWrapper}>
-      <Image source={{ uri: user.avatar }} style={styles.activeAvatar} />
-      {user.isYou ? (
-        <View style={styles.addBadge}>
-          <Icon name="plus" size={10} color={Colors.white} />
-        </View>
-      ) : (
-        <View style={styles.onlineDotActive} />
-      )}
-    </View>
-    <Text style={styles.activeUserName} numberOfLines={1}>
-      {user.isYou ? 'My Story' : user.name}
-    </Text>
-  </TouchableOpacity>
-);
-
 const ChatItem = ({ item, onPress }) => {
   const hasUnread = item.unread > 0;
 

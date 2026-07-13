@@ -7,17 +7,19 @@ const useMessages = (conversationId, userId) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (isInitialLoad = false) => {
     if (!conversationId) return;
     try {
-      setLoading(true);
+      if (isInitialLoad) {
+        setLoading(true);
+      }
       setError(null);
 
       const rawData = await fetchMessages(conversationId);
 
       const formatted = rawData.map((row) => ({
         id: row.id,
-        type: row.message_type, // 'text' | 'image' | 'voice' | etc.
+        type: row.message_type,
         text: row.message,
         image: row.message_type === 'image' ? row.file_url : null,
         fileUrl: row.file_url,
@@ -29,10 +31,10 @@ const useMessages = (conversationId, userId) => {
         isDeleted: row.is_deleted,
         replyTo: row.reply_to
           ? {
-              id: row.reply_to.id,
-              text: row.reply_to.message,
-              type: row.reply_to.message_type,
-            }
+            id: row.reply_to.id,
+            text: row.reply_to.message,
+            type: row.reply_to.message_type,
+          }
           : null,
         time: new Date(row.created_at).toLocaleTimeString([], {
           hour: '2-digit',
@@ -45,14 +47,16 @@ const useMessages = (conversationId, userId) => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
   }, [conversationId, userId]);
 
   useEffect(() => {
     if (!conversationId) return;
 
-    loadMessages();
+    loadMessages(true);
 
     const channel = supabase
       .channel(`messages_${conversationId}`)

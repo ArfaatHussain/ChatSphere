@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,16 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  BackHandler,
+  ToastAndroid
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
 import useConversations from '../../hooks/useDirectConversations';
 import { getItem, StorageKeys } from '../../utils/storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { setUserOffline } from '../../services/userService';
 
 const ChatItem = ({ item, onPress }) => {
   const hasUnread = item.unread > 0;
@@ -88,6 +91,7 @@ const Chats = ({ navigation }) => {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
+  const lastBackPress = useRef(0);
 
   const user = getItem(StorageKeys.USER_DATA);
 
@@ -98,6 +102,33 @@ const Chats = ({ navigation }) => {
     useCallback(() => {
       refetch();
     }, [refetch])
+  );
+
+
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        if (Date.now() - lastBackPress.current < 2000) {
+          if (user?.id) {
+            setUserOffline(user.id); // fire-and-forget, best effort
+          }
+          BackHandler.exitApp();
+          return true;
+        }
+
+        lastBackPress.current = Date.now();
+
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
+        }
+
+        return true; 
+      };
+
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => subscription.remove();
+    }, [user?.id])
   );
 
   const onRefresh = async () => {

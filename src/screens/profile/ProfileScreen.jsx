@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,26 +12,28 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
 import { getItem, StorageKeys, removeItem } from '../../utils/storage';
+import { setUserOffline } from '../../services/userService';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const ProfileScreen = ({ navigation }) => {
   const user = getItem(StorageKeys.USER_DATA);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log out',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log out',
-          style: 'destructive',
-          onPress: () => {
-            removeItem(StorageKeys.USER_DATA);
-            navigation.replace('login');
-          },
-        },
-      ],
-    );
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    setShowLogoutModal(false);
+
+    const userData = getItem(StorageKeys.USER_DATA);
+
+    if (userData?.id) {
+      await setUserOffline(userData.id);
+    }
+
+    removeItem(StorageKeys.USER_DATA);
+    navigation.replace('login');
   };
 
   const InfoRow = ({ icon, label, value }) => (
@@ -49,6 +51,18 @@ const ProfileScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+
+      <ConfirmModal
+        visible={showLogoutModal}
+        title="Log out"
+        message="Are you sure you want to log out?"
+        confirmText="Log out"
+        cancelText="Cancel"
+        icon="log-out"
+        destructive
+        onCancel={() => setShowLogoutModal(false)}
+        onConfirm={confirmLogout}
+      />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}

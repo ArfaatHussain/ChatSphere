@@ -17,6 +17,7 @@ import { supabase } from '../../db/supabase';
 import bcrypt from 'bcryptjs';
 import { StorageKeys, getItem, setItem  } from '../../utils/storage';
 import toast from 'react-native-simple-toast';
+import { setUserOnline } from '../../services/userService';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -44,9 +45,7 @@ const LoginScreen = ({ navigation }) => {
         .from('users')
         .select('id, username, full_name, email, avatar_url, password')
         .eq('email', email.trim())
-        .single();
-
-      console.log("Fetched User: ", user)  
+        .single();  
 
       if (fetchError || !user) {
         throw new Error('User not found.');
@@ -62,6 +61,7 @@ const LoginScreen = ({ navigation }) => {
       const { password_hash, ...safeUser } = user;
 
       setItem(StorageKeys.USER_DATA, safeUser);
+      setUserOnline(safeUser.id);
 
       navigation.replace('main');
     } catch (err) {

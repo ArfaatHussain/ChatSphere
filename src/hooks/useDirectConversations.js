@@ -11,15 +11,16 @@ const useConversations = (userId) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (isInitialLoad = false) => {
     if (!userId) return;
     try {
-      setLoading(true);
+      if (isInitialLoad) {
+        setLoading(true);
+      }
       setError(null);
 
       const rawData = await fetchDirectConversations(userId);
 
-      // Build enriched conversation list
       const enriched = await Promise.all(
         rawData.map(async (item) => {
           const convo = item.conversations;
@@ -29,7 +30,6 @@ const useConversations = (userId) => {
           let isOnline = false;
           let otherUserId = null;
 
-          // For direct chats fetch the other user's info
           if (convo.type === 'direct') {
             const otherUser = await fetchDirectChatUser(convo.id, userId);
             if (otherUser) {
@@ -63,7 +63,6 @@ const useConversations = (userId) => {
         }),
       );
 
-      // Sort by last message time
       enriched.sort(
         (a, b) => new Date(b.last_message_at) - new Date(a.last_message_at),
       );
@@ -72,7 +71,9 @@ const useConversations = (userId) => {
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      }
     }
   }, [userId]);
 
@@ -80,7 +81,7 @@ const useConversations = (userId) => {
   useEffect(() => {
     if (!userId) return;
 
-    loadConversations();
+    loadConversations(true);
 
     const channel = supabase
       .channel('conversations_changes')

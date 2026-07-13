@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,8 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
 import useConversations from '../../hooks/useDirectConversations';
-import { supabase } from '../../db/supabase';
 import { getItem, StorageKeys } from '../../utils/storage';
+import { useFocusEffect } from '@react-navigation/native';
 
 const ChatItem = ({ item, onPress }) => {
   const hasUnread = item.unread > 0;
@@ -93,6 +93,12 @@ const Chats = ({ navigation }) => {
 
 
   const { conversations, loading, refetch } = useConversations(user?.id);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

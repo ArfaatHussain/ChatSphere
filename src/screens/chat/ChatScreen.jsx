@@ -20,7 +20,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme/index';
 import useMessages from '../../hooks/useMessages';
 import { sendMessage } from '../../services/messageService';
 import { getItem, StorageKeys } from '../../utils/storage';
-import { fetchDirectChatUser } from '../../services/conversationService';
+import { fetchDirectChatUser, markConversationAsRead } from '../../services/conversationService';
 
 export default function ChatScreen({ navigation, route }) {
     const { conversation } = route.params;
@@ -37,10 +37,19 @@ export default function ChatScreen({ navigation, route }) {
                 .then(setOtherUser)
                 .catch((err) => console.error('Failed to load user status:', err));
         }
+
+
     }, [conversation.id, currentUserId]);
 
     const { messages, loading, error } = useMessages(conversation.id, currentUserId);
 
+    useEffect(() => {
+        if (conversation.id && currentUserId) {
+            markConversationAsRead(conversation.id, currentUserId).catch((err) =>
+                console.error('Failed to mark as read:', err)
+            );
+        }
+    }, [conversation.id, currentUserId, messages.length]);
 
     const formatLastSeen = (lastSeen) => {
         if (!lastSeen) return 'Offline';

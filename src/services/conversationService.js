@@ -84,3 +84,13 @@ export const fetchUnreadCount = async (conversationId, userId, lastReadAt) => {
   if (error) throw error;
   return count ?? 0;
 };
+
+export const markConversationAsRead = async (conversationId, userId) => {
+  const { error } = await supabase
+    .from('conversation_members')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+};

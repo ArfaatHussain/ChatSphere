@@ -2,9 +2,42 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../db/supabase';
 import { fetchMessages } from '../services/messageService';
 
+
+// Module-level cache — persists across screen mounts/unmounts
+const messagesCache = new Map();
+
+const formatMessages = (rawData, userId) =>
+  rawData.map((row) => ({
+    id: row.id,
+    type: row.message_type,
+    text: row.message,
+    image: row.message_type === 'image' ? row.file_url : null,
+    fileUrl: row.file_url,
+    isOwn: row.sender_id === userId,
+    senderId: row.sender_id,
+    senderName: row.sender?.full_name,
+    senderAvatar: row.sender?.avatar_url,
+    isEdited: row.is_edited,
+    isDeleted: row.is_deleted,
+    replyTo: row.reply_to
+      ? {
+        id: row.reply_to.id,
+        text: row.reply_to.message,
+        type: row.reply_to.message_type,
+      }
+      : null,
+    time: new Date(row.created_at).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    createdAt: row.created_at,
+  }));
+
 const useMessages = (conversationId, userId) => {
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cached = messagesCache.get(conversationId);
+
+  const [messages, setMessages] = useState(cached || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState(null);
 
   const loadMessages = useCallback(async (isInitialLoad = false) => {
@@ -16,33 +49,9 @@ const useMessages = (conversationId, userId) => {
       setError(null);
 
       const rawData = await fetchMessages(conversationId);
+      const formatted = formatMessages(rawData, userId);
 
-      const formatted = rawData.map((row) => ({
-        id: row.id,
-        type: row.message_type,
-        text: row.message,
-        image: row.message_type === 'image' ? row.file_url : null,
-        fileUrl: row.file_url,
-        isOwn: row.sender_id === userId,
-        senderId: row.sender_id,
-        senderName: row.sender?.full_name,
-        senderAvatar: row.sender?.avatar_url,
-        isEdited: row.is_edited,
-        isDeleted: row.is_deleted,
-        replyTo: row.reply_to
-          ? {
-            id: row.reply_to.id,
-            text: row.reply_to.message,
-            type: row.reply_to.message_type,
-          }
-          : null,
-        time: new Date(row.created_at).toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        createdAt: row.created_at,
-      }));
-
+      messagesCache.set(conversationId, formatted); // update cache
       setMessages(formatted);
     } catch (err) {
       setError(err.message);
@@ -56,7 +65,8 @@ const useMessages = (conversationId, userId) => {
   useEffect(() => {
     if (!conversationId) return;
 
-    loadMessages(true);
+    // Only show spinner if we've never loaded this conversation before
+    loadMessages(!messagesCache.has(conversationId));
 
     const channel = supabase
       .channel(`messages_${conversationId}`)
@@ -69,7 +79,7 @@ const useMessages = (conversationId, userId) => {
           filter: `conversation_id=eq.${conversationId}`,
         },
         () => {
-          loadMessages();
+          loadMessages(); // background — no spinner
         },
       )
       .subscribe();

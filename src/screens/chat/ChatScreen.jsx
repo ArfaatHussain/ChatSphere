@@ -22,23 +22,26 @@ import { sendMessage } from '../../services/messageService';
 import { getItem, StorageKeys } from '../../utils/storage';
 import { fetchDirectChatUser, markConversationAsRead } from '../../services/conversationService';
 
+// Module-level cache — persists across screen mounts/unmounts
+const otherUserCache = new Map();
 export default function ChatScreen({ navigation, route }) {
     const { conversation } = route.params;
     const currentUser = getItem(StorageKeys.USER_DATA);
     const currentUserId = currentUser?.id;
 
-    const [otherUser, setOtherUser] = useState(null);
+    const [otherUser, setOtherUser] = useState(otherUserCache.get(conversation.id) || null);
 
     const [inputText, setInputText] = useState('');
 
     useEffect(() => {
         if (conversation.type === 'direct') {
             fetchDirectChatUser(conversation.id, currentUserId)
-                .then(setOtherUser)
+                .then((user) => {
+                    otherUserCache.set(conversation.id, user); // update cache
+                    setOtherUser(user);
+                })
                 .catch((err) => console.error('Failed to load user status:', err));
         }
-
-
     }, [conversation.id, currentUserId]);
 
     const { messages, loading, error } = useMessages(conversation.id, currentUserId);

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
-import useConversations from '../../hooks/useConversations';
+import useConversations from '../../hooks/useDirectConversations';
 import { supabase } from '../../db/supabase';
 import { getItem, StorageKeys } from '../../utils/storage';
 

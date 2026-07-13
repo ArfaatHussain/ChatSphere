@@ -1,13 +1,13 @@
 import { supabase } from "../db/supabase";
 
-// Fetch all conversations for the logged in user
-export const fetchConversations = async (userId) => {
+// Fetch all direct conversations for the logged in user
+export const fetchDirectConversations = async (userId) => {
   const { data, error } = await supabase
     .from('conversation_members')
     .select(`
       conversation_id,
       last_read_at,
-      conversations (
+      conversations!inner (
         id,
         type,
         name,
@@ -18,6 +18,31 @@ export const fetchConversations = async (userId) => {
       )
     `)
     .eq('user_id', userId)
+    .eq('conversations.type', 'direct')
+    .order('conversation_id', { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
+export const fetchGroupConversations = async (userId) => {
+  const { data, error } = await supabase
+    .from('conversation_members')
+    .select(`
+      conversation_id,
+      last_read_at,
+      conversations!inner (
+        id,
+        type,
+        name,
+        avatar_url,
+        last_message,
+        last_message_at,
+        last_message_sender_id
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('conversations.type', 'group')
     .order('conversation_id', { ascending: false });
 
   if (error) throw error;

@@ -215,7 +215,7 @@ const Chats = ({ navigation }) => {
           renderItem={({ item }) =>
             <ChatItem
               item={item}
-              onPress={() => navigation.navigate('Chat', { conversation: item })}
+              onPress={() => navigation.navigate('chat-screen', { conversation: item })}
             />
           }
           showsVerticalScrollIndicator={false}

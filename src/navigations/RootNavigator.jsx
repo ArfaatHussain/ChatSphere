@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import BottomTabNavigator from './BottomTabNavigator';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import ChatScreen from '../screens/chat/ChatScreen';
 import { getItem, StorageKeys } from '../utils/storage';
 
 const Stack = createStackNavigator();
@@ -19,6 +20,7 @@ const RootNavigator = () => {
     >
       <Stack.Screen name="login" component={LoginScreen} />
       <Stack.Screen name="register" component={RegisterScreen} />
+      <Stack.Screen name="chat-screen" component={ChatScreen} />
       <Stack.Screen name="main" component={BottomTabNavigator} />
     </Stack.Navigator>
   );

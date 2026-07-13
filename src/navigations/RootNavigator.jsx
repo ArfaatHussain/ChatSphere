@@ -1,13 +1,13 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BottomTabNavigator from './BottomTabNavigator';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import ChatScreen from '../screens/chat/ChatScreen';
 import { getItem, StorageKeys } from '../utils/storage';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 const RootNavigator = () => {
 

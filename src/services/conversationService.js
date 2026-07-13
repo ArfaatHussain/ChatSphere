@@ -1,4 +1,4 @@
-import {supabase} from "../db/supabase";
+import { supabase } from "../db/supabase";
 
 // Fetch all conversations for the logged in user
 export const fetchConversations = async (userId) => {
@@ -35,7 +35,8 @@ export const fetchDirectChatUser = async (conversationId, currentUserId) => {
         full_name,
         username,
         avatar_url,
-        is_online
+        is_online,
+        last_seen
       )
     `)
     .eq('conversation_id', conversationId)

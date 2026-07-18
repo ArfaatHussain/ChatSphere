@@ -1,5 +1,65 @@
 import { supabase } from '../db/supabase';
 
+// ─── Users / group creation ──────────────────────────────────────────────────
+
+/**
+ * Fetch all users except the given one, for populating a "select members"
+ * list when creating a group.
+ *
+ * NOTE: the schema has no friends/contacts table, so this returns every
+ * registered user rather than a real friends list. If you add a `friends`
+ * table (e.g. user_id, friend_id, status) later, swap this query to join
+ * against it and filter to accepted connections.
+ */
+export const getAllUsers = async (excludeUserId) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, username, full_name, avatar_url, is_online')
+    .neq('id', excludeUserId)
+    .order('full_name', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+};
+
+/**
+ * Create a new group conversation with the given members.
+ * The creator is added as 'admin'; everyone else as 'member'.
+ */
+export const createGroupConversation = async ({ name, avatarUrl, creatorId, memberIds }) => {
+  const { data: conversation, error: convError } = await supabase
+    .from('conversations')
+    .insert({
+      type: 'group',
+      name,
+      avatar_url: avatarUrl || null,
+      created_by: creatorId,
+    })
+    .select('id, name, avatar_url, type')
+    .single();
+
+  if (convError) throw convError;
+
+  const memberRows = [
+    { conversation_id: conversation.id, user_id: creatorId, role: 'admin' },
+    ...memberIds
+      .filter(id => id !== creatorId)
+      .map(id => ({ conversation_id: conversation.id, user_id: id, role: 'member' })),
+  ];
+
+  const { error: memberError } = await supabase
+    .from('conversation_members')
+    .insert(memberRows);
+
+  if (memberError) {
+    // Roll back the orphaned conversation if member insertion fails.
+    await supabase.from('conversations').delete().eq('id', conversation.id);
+    throw memberError;
+  }
+
+  return conversation;
+};
+
 // ─── Groups list (GroupsScreen) ──────────────────────────────────────────────
 
 /**
@@ -110,7 +170,7 @@ export const getMessages = async (conversationId, limit = 100) => {
       sender_id,
       is_edited,
       is_deleted,
-      users ( id, username, full_name, avatar_url )
+      users!messages_sender_id_fkey ( id, username, full_name, avatar_url )
     `)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
@@ -134,7 +194,7 @@ export const sendMessage = async (conversationId, senderId, message) => {
     })
     .select(`
       id, message, message_type, created_at, sender_id,
-      users ( id, username, full_name, avatar_url )
+      users!messages_sender_id_fkey ( id, username, full_name, avatar_url )
     `)
     .single();
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,161 +9,36 @@ import {
   StatusBar,
   Image,
   ScrollView,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';
+import { StorageKeys, getItem } from '../../utils/storage';
+import { getUserGroups } from '../../services/chatService';
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PINNED_GROUPS = [
-  {
-    id: 'p1',
-    name: 'Design Team',
-    avatar: 'https://i.pravatar.cc/150?img=12',
-    members: 8,
-    color: '#4F46E5',
-  },
-  {
-    id: 'p2',
-    name: 'Project Phoenix 🔥',
-    avatar: 'https://i.pravatar.cc/150?img=60',
-    members: 14,
-    color: '#EF4444',
-  },
-  {
-    id: 'p3',
-    name: 'Dev Squad',
-    avatar: 'https://i.pravatar.cc/150?img=22',
-    members: 6,
-    color: '#10B981',
-  },
-  {
-    id: 'p4',
-    name: 'Marketing',
-    avatar: 'https://i.pravatar.cc/150?img=35',
-    members: 11,
-    color: '#F59E0B',
-  },
-  {
-    id: 'p5',
-    name: 'All Hands',
-    avatar: 'https://i.pravatar.cc/150?img=50',
-    members: 42,
-    color: '#6366F1',
-  },
-];
-
-const GROUPS = [
-  {
-    id: '1',
-    name: 'Design Team',
-    avatar: 'https://i.pravatar.cc/150?img=12',
-    lastMessage: 'James: New Figma link is ready',
-    time: '9:15 AM',
-    unread: 12,
-    members: 8,
-    onlineCount: 3,
-    muted: false,
-    pinned: true,
-    memberAvatars: [
-      'https://i.pravatar.cc/150?img=5',
-      'https://i.pravatar.cc/150?img=33',
-      'https://i.pravatar.cc/150?img=44',
-    ],
-  },
-  {
-    id: '2',
-    name: 'Project Phoenix 🔥',
-    avatar: 'https://i.pravatar.cc/150?img=60',
-    lastMessage: 'Nina: Deployment is live! 🚀',
-    time: 'Yesterday',
-    unread: 5,
-    members: 14,
-    onlineCount: 6,
-    muted: false,
-    pinned: true,
-    memberAvatars: [
-      'https://i.pravatar.cc/150?img=68',
-      'https://i.pravatar.cc/150?img=47',
-      'https://i.pravatar.cc/150?img=12',
-    ],
-  },
-  {
-    id: '3',
-    name: 'Dev Squad',
-    avatar: 'https://i.pravatar.cc/150?img=22',
-    lastMessage: 'You: PR is up for review',
-    time: 'Yesterday',
-    unread: 0,
-    members: 6,
-    onlineCount: 2,
-    muted: false,
-    pinned: false,
-    sent: true,
-    memberAvatars: [
-      'https://i.pravatar.cc/150?img=33',
-      'https://i.pravatar.cc/150?img=1',
-      'https://i.pravatar.cc/150?img=22',
-    ],
-  },
-  {
-    id: '4',
-    name: 'Marketing',
-    avatar: 'https://i.pravatar.cc/150?img=35',
-    lastMessage: 'Sara: Campaign analytics are in',
-    time: 'Mon',
-    unread: 2,
-    members: 11,
-    onlineCount: 1,
-    muted: true,
-    pinned: false,
-    memberAvatars: [
-      'https://i.pravatar.cc/150?img=5',
-      'https://i.pravatar.cc/150?img=47',
-      'https://i.pravatar.cc/150?img=44',
-    ],
-  },
-  {
-    id: '5',
-    name: 'All Hands',
-    avatar: 'https://i.pravatar.cc/150?img=50',
-    lastMessage: 'CEO: Q3 review deck is attached',
-    time: 'Mon',
-    unread: 0,
-    members: 42,
-    onlineCount: 18,
-    muted: true,
-    pinned: false,
-    memberAvatars: [
-      'https://i.pravatar.cc/150?img=12',
-      'https://i.pravatar.cc/150?img=33',
-      'https://i.pravatar.cc/150?img=68',
-    ],
-  },
-  {
-    id: '6',
-    name: 'Weekend Hikers 🏔️',
-    avatar: 'https://i.pravatar.cc/150?img=15',
-    lastMessage: 'Alex: Trail map for Saturday',
-    time: 'Sun',
-    unread: 7,
-    members: 9,
-    onlineCount: 0,
-    muted: false,
-    pinned: false,
-    memberAvatars: [
-      'https://i.pravatar.cc/150?img=33',
-      'https://i.pravatar.cc/150?img=5',
-      'https://i.pravatar.cc/150?img=44',
-    ],
-  },
-];
+const formatTime = isoString => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return date.toLocaleDateString([], { weekday: 'short' });
+};
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 const PinnedGroupCard = ({ group, onPress }) => (
   <TouchableOpacity style={styles.pinnedCard} onPress={onPress} activeOpacity={0.8}>
-    <View style={[styles.pinnedAvatarRing, { borderColor: group.color }]}>
+    <View style={[styles.pinnedAvatarRing, { borderColor: Colors.primary }]}>
       <Image source={{ uri: group.avatar }} style={styles.pinnedAvatar} />
     </View>
     <Text style={styles.pinnedName} numberOfLines={1}>{group.name}</Text>
@@ -191,7 +66,6 @@ const GroupItem = ({ item, onPress }) => {
 
   return (
     <TouchableOpacity style={styles.groupItem} onPress={onPress} activeOpacity={0.7}>
-      {/* Avatar */}
       <View style={styles.avatarWrapper}>
         <Image source={{ uri: item.avatar }} style={styles.avatar} />
         {item.onlineCount > 0 && (
@@ -201,7 +75,6 @@ const GroupItem = ({ item, onPress }) => {
         )}
       </View>
 
-      {/* Content */}
       <View style={styles.groupContent}>
         <View style={styles.groupHeader}>
           <View style={styles.groupNameRow}>
@@ -216,7 +89,7 @@ const GroupItem = ({ item, onPress }) => {
             )}
           </View>
           <Text style={[styles.groupTime, hasUnread && styles.groupTimeUnread]}>
-            {item.time}
+            {formatTime(item.time)}
           </Text>
         </View>
 
@@ -228,7 +101,7 @@ const GroupItem = ({ item, onPress }) => {
             <Text
               style={[styles.lastMessage, hasUnread && styles.lastMessageBold]}
               numberOfLines={1}>
-              {item.lastMessage}
+              {item.lastMessage || 'No messages yet'}
             </Text>
           </View>
 
@@ -245,7 +118,6 @@ const GroupItem = ({ item, onPress }) => {
           </View>
         </View>
 
-        {/* Member stack + count */}
         <View style={styles.memberRow}>
           <MemberStack avatars={item.memberAvatars} />
           <Text style={styles.memberCount}>
@@ -261,31 +133,71 @@ const GroupItem = ({ item, onPress }) => {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 const GroupsScreen = ({ navigation }) => {
+  const currentUser = getItem(StorageKeys.USER_DATA);
+
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const filters = ['All', 'Pinned', 'Muted'];
 
-  const filteredGroups = GROUPS.filter(g => {
+  const loadGroups = useCallback(async ({ isRefresh = false } = {}) => {
+    if (!currentUser?.id) return;
+    try {
+      isRefresh ? setRefreshing(true) : setLoading(true);
+      const data = await getUserGroups(currentUser.id);
+      setGroups(data);
+    } catch (err) {
+      console.warn('Failed to load groups', err);
+    } finally {
+      isRefresh ? setRefreshing(false) : setLoading(false);
+    }
+  }, [currentUser?.id]);
+
+  // Refetch every time the screen comes into focus (e.g. after leaving a chat)
+  useFocusEffect(
+    useCallback(() => {
+      loadGroups();
+    }, [loadGroups])
+  );
+
+  // "Quick Access" stand-in for real pinning: top 5 most recently active groups.
+  // See services/chatService.js for a note on adding a real is_pinned column.
+  const pinnedGroups = [...groups]
+    .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
+    .slice(0, 5);
+
+  const filteredGroups = groups.filter(g => {
     const matchesSearch = g.name.toLowerCase().includes(search.toLowerCase());
     if (activeFilter === 'Pinned') return matchesSearch && g.pinned;
-    if (activeFilter === 'Muted')  return matchesSearch && g.muted;
+    if (activeFilter === 'Muted') return matchesSearch && g.muted;
     return matchesSearch;
   });
 
-  const handleGroupPress = (group) => {
-    navigation.navigate('Chat', { chat: { ...group, type: 'group' } });
+  const handleGroupPress = group => {
+    navigation.navigate('GroupChatScreen', { groupId: group.id, groupName: group.name });
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+        <ActivityIndicator color={Colors.primary} size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
 
-      {/* ── Header ── */}
+      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Groups</Text>
-          <Text style={styles.headerSub}>{GROUPS.length} groups joined</Text>
+          <Text style={styles.headerSub}>{groups.length} groups joined</Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.headerIcon}>
@@ -299,7 +211,7 @@ const GroupsScreen = ({ navigation }) => {
         </View>
       </View>
 
-      {/* ── Search ── */}
+      {/* Search */}
       <View style={styles.searchContainer}>
         <Icon name="magnify" size={20} color={Colors.grey} style={styles.searchIcon} />
         <TextInput
@@ -316,7 +228,7 @@ const GroupsScreen = ({ navigation }) => {
         )}
       </View>
 
-      {/* ── Filter Chips ── */}
+      {/* Filter Chips */}
       <View style={styles.filterRow}>
         {filters.map(f => (
           <TouchableOpacity
@@ -330,8 +242,8 @@ const GroupsScreen = ({ navigation }) => {
         ))}
       </View>
 
-      {/* ── Pinned / Quick Access ── */}
-      {activeFilter === 'All' && !search && (
+      {/* Quick Access */}
+      {activeFilter === 'All' && !search && pinnedGroups.length > 0 && (
         <>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Quick Access</Text>
@@ -341,18 +253,14 @@ const GroupsScreen = ({ navigation }) => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.pinnedScrollContent}
             style={styles.pinnedScroll}>
-            {PINNED_GROUPS.map(g => (
-              <PinnedGroupCard
-                key={g.id}
-                group={g}
-                onPress={() => handleGroupPress(g)}
-              />
+            {pinnedGroups.map(g => (
+              <PinnedGroupCard key={g.id} group={g} onPress={() => handleGroupPress(g)} />
             ))}
           </ScrollView>
         </>
       )}
 
-      {/* ── All Groups Section ── */}
+      {/* All Groups Section */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>
           {activeFilter === 'All' ? 'All Groups' : activeFilter}
@@ -362,7 +270,7 @@ const GroupsScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* ── Group List ── */}
+      {/* Group List */}
       {filteredGroups.length === 0 ? (
         <View style={styles.emptyState}>
           <Icon name="account-group-outline" size={60} color={Colors.lightGrey} />
@@ -380,17 +288,25 @@ const GroupsScreen = ({ navigation }) => {
       ) : (
         <FlatList
           data={filteredGroups}
-          keyExtractor={item => item.id}
+          keyExtractor={item => String(item.id)}
           renderItem={({ item }) => (
             <GroupItem item={item} onPress={() => handleGroupPress(item)} />
           )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadGroups({ isRefresh: true })}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
+          }
         />
       )}
 
-      {/* ── FAB ── */}
+      {/* FAB */}
       <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('CreateGroup')}>
@@ -400,69 +316,59 @@ const GroupsScreen = ({ navigation }) => {
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles (unchanged from static version) ───────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
-
-  // Header
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
   },
   headerTitle: {
     fontSize: FontSizes.xxl,
-    fontWeight: '800',
+    fontWeight: '700',
     color: Colors.darkBackground,
-    letterSpacing: 0.3,
   },
   headerSub: {
-    fontSize: FontSizes.xs,
+    fontSize: FontSizes.sm,
     color: Colors.grey,
     marginTop: 2,
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
   },
   headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
+    padding: Spacing.sm,
+    marginRight: Spacing.xs,
   },
   newGroupButton: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
   },
-
-  // Search
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: Spacing.lg,
     backgroundColor: Colors.white,
-    marginHorizontal: Spacing.xl,
-    marginVertical: Spacing.sm,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
-    height: 46,
-    elevation: 2,
+    height: 44,
     borderWidth: 1,
     borderColor: Colors.lightGrey,
   },
@@ -474,21 +380,19 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.md,
     color: Colors.darkBackground,
   },
-
-  // Filter chips
   filterRow: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
-    gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
   },
   filterChip: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs + 2,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.white,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: Colors.lightGrey,
+    marginRight: Spacing.sm,
   },
   filterChipActive: {
     backgroundColor: Colors.primary,
@@ -496,101 +400,81 @@ const styles = StyleSheet.create({
   },
   filterText: {
     fontSize: FontSizes.sm,
+    color: Colors.darkGrey,
     fontWeight: '600',
-    color: Colors.grey,
   },
   filterTextActive: {
     color: Colors.white,
   },
-
-  // Pinned cards
-  pinnedScroll: {
-    marginBottom: Spacing.sm,
-  },
-  pinnedScrollContent: {
-    paddingHorizontal: Spacing.xl,
-    gap: Spacing.sm,
-    marginVertical: Spacing.md
-  },
-  pinnedCard: {
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    width: 80,
-    elevation: 2,
-    borderWidth: 1,
-    borderColor: Colors.lightGrey,
-  },
-  pinnedAvatarRing: {
-    width: 46,
-    height: 46,
-    borderRadius: BorderRadius.full,
-    borderWidth: 2.5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
-  },
-  pinnedAvatar: {
-    width: 38,
-    height: 38,
-    borderRadius: BorderRadius.full,
-  },
-  pinnedName: {
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
-    color: Colors.darkBackground,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  pinnedMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pinnedCount: {
-    fontSize: FontSizes.xs - 1,
-    color: Colors.grey,
-  },
-
-  // Section header
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
   sectionTitle: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.md,
     fontWeight: '700',
-    color: Colors.darkGrey,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    color: Colors.darkBackground,
   },
   sectionAction: {
     fontSize: FontSizes.sm,
     color: Colors.primary,
     fontWeight: '600',
   },
-
-  // Group list
+  pinnedScroll: {
+    flexGrow: 0,
+  },
+  pinnedScrollContent: {
+    paddingHorizontal: Spacing.lg,
+  },
+  pinnedCard: {
+    width: 76,
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  pinnedAvatarRing: {
+    width: 58,
+    height: 58,
+    borderRadius: BorderRadius.full,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  pinnedAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: BorderRadius.full,
+  },
+  pinnedName: {
+    fontSize: FontSizes.xs,
+    color: Colors.darkBackground,
+    fontWeight: '600',
+  },
+  pinnedMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  pinnedCount: {
+    fontSize: FontSizes.xs,
+    color: Colors.grey,
+  },
   listContent: {
+    paddingHorizontal: Spacing.lg,
     paddingBottom: 100,
   },
   separator: {
     height: 1,
     backgroundColor: Colors.lightGrey,
-    marginLeft: 82,
+    marginVertical: Spacing.sm,
   },
   groupItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    backgroundColor: Colors.background,
   },
-
-  // Avatar
   avatarWrapper: {
     position: 'relative',
     marginRight: Spacing.md,
@@ -598,29 +482,27 @@ const styles = StyleSheet.create({
   avatar: {
     width: 52,
     height: 52,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.full,
   },
   onlineBadge: {
     position: 'absolute',
-    bottom: -4,
-    right: -6,
+    bottom: -2,
+    right: -2,
     backgroundColor: Colors.success,
     borderRadius: BorderRadius.full,
     minWidth: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 3,
     borderWidth: 2,
     borderColor: Colors.background,
+    paddingHorizontal: 3,
   },
   onlineBadgeText: {
-    fontSize: FontSizes.xs - 2,
+    fontSize: 9,
     color: Colors.white,
     fontWeight: '700',
   },
-
-  // Group content
   groupContent: {
     flex: 1,
   },
@@ -628,29 +510,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 3,
   },
   groupNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: Spacing.sm,
   },
   pinIcon: {
     marginRight: 4,
-    transform: [{ rotate: '45deg' }],
-  },
-  muteIcon: {
-    marginLeft: 4,
   },
   groupName: {
-    fontSize: FontSizes.md,
-    fontWeight: '500',
+    fontSize: FontSizes.lg,
     color: Colors.darkBackground,
-    flex: 1,
+    flexShrink: 1,
   },
   groupNameBold: {
     fontWeight: '700',
+  },
+  muteIcon: {
+    marginLeft: 4,
   },
   groupTime: {
     fontSize: FontSizes.xs,
@@ -664,117 +542,107 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.xs,
+    marginTop: 4,
   },
   lastMessageRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: Spacing.sm,
   },
   lastMessage: {
     fontSize: FontSizes.sm,
     color: Colors.grey,
-    flex: 1,
+    flexShrink: 1,
   },
   lastMessageBold: {
     color: Colors.darkGrey,
     fontWeight: '600',
   },
   rightMeta: {
-    alignItems: 'flex-end',
+    marginLeft: Spacing.sm,
   },
   unreadBadge: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.full,
     minWidth: 20,
     height: 20,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 5,
   },
   unreadText: {
-    fontSize: FontSizes.xs - 1,
+    fontSize: FontSizes.xs,
     color: Colors.white,
     fontWeight: '700',
   },
   mutedUnreadBadge: {
+    backgroundColor: Colors.lightGrey,
+    borderRadius: BorderRadius.full,
     minWidth: 20,
     height: 20,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.lightGrey,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 5,
   },
   mutedUnreadText: {
-    fontSize: FontSizes.xs - 1,
-    color: Colors.grey,
+    fontSize: FontSizes.xs,
+    color: Colors.darkGrey,
     fontWeight: '700',
   },
-
-  // Member stack
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: Spacing.xs,
   },
   memberStack: {
     flexDirection: 'row',
-    width: 44,
+    width: 50,
     height: 20,
-    position: 'relative',
-    marginRight: Spacing.sm,
   },
   stackAvatar: {
+    position: 'absolute',
     width: 20,
     height: 20,
     borderRadius: BorderRadius.full,
     borderWidth: 1.5,
     borderColor: Colors.background,
-    position: 'absolute',
   },
   memberCount: {
     fontSize: FontSizes.xs,
     color: Colors.grey,
+    marginLeft: Spacing.sm,
   },
-
-  // Empty state
   emptyState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 80,
+    paddingHorizontal: Spacing.xxl,
   },
   emptyTitle: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: Colors.darkGrey,
+    color: Colors.darkBackground,
     marginTop: Spacing.md,
   },
   emptySubtitle: {
     fontSize: FontSizes.sm,
     color: Colors.grey,
-    marginTop: Spacing.xs,
     textAlign: 'center',
-    paddingHorizontal: Spacing.xxxl,
-    marginBottom: Spacing.xl,
+    marginTop: Spacing.xs,
   },
   emptyAction: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-    elevation: 4,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.lg,
   },
   emptyActionText: {
-    fontSize: FontSizes.md,
-    fontWeight: '700',
     color: Colors.white,
+    fontWeight: '600',
   },
-
-  // FAB
   fab: {
     position: 'absolute',
     bottom: Spacing.xxl,
@@ -785,11 +653,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
+    elevation: 4,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
 });
 

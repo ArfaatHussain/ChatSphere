@@ -2,10 +2,11 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Chats from '../screens/chat/Chats';
-import GroupsScreen from '../screens/groups/GroupsScreen';
+import GroupsScreen from '../screens/groups/Groups';
 import CallsScreen from '../screens/calls/CallsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import { Colors } from '../theme';
+
 
 const Tab = createBottomTabNavigator();
 

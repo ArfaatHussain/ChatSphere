@@ -12,7 +12,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   BackHandler,
-  ToastAndroid
+  ToastAndroid,
+  Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../theme';

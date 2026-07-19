@@ -21,70 +21,7 @@ import useConversations from '../../hooks/useDirectConversations';
 import { getItem, StorageKeys } from '../../utils/storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { setUserOffline } from '../../services/userService';
-
-const ChatItem = ({ item, onPress }) => {
-  const hasUnread = item.unread > 0;
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short' });
-    return date.toLocaleDateString([], { day: '2-digit', month: 'short' });
-  };
-
-  return (
-    <TouchableOpacity style={[styles.chatItem, { backgroundColor: Colors.background }]} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.avatarWrapper}>
-        {item.avatar_url ? (
-          <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.avatarFallback]}>
-            <Icon name={item.type === 'group' ? 'account-group' : 'account'} size={24} color={Colors.white} />
-          </View>
-        )}
-        {item.is_online && <View style={styles.onlineDot} />}
-        {item.type === 'group' && (
-          <View style={styles.groupBadge}>
-            <Icon name="account-group" size={9} color={Colors.white} />
-          </View>
-        )}
-      </View>
-
-      <View style={styles.chatContent}>
-        <View style={styles.chatHeader}>
-          <Text style={[styles.chatName, hasUnread && styles.chatNameBold]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={[styles.chatTime, hasUnread && styles.chatTimeUnread]}>
-            {formatTime(item.last_message_at)}
-          </Text>
-        </View>
-        <View style={styles.chatFooter}>
-          <View style={styles.lastMessageRow}>
-            {item.sent && (
-              <Icon name="check-all" size={14} color={Colors.primary} style={{ marginRight: 3 }} />
-            )}
-            <Text style={[styles.lastMessage, hasUnread && styles.lastMessageBold]} numberOfLines={1}>
-              {item.last_message || 'No messages yet'}
-            </Text>
-          </View>
-          {hasUnread ? (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadText}>{item.unread > 99 ? '99+' : item.unread}</Text>
-            </View>
-          ) : (
-            <View style={styles.unreadPlaceholder} />
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-};
+import { deleteConversationForUser } from '../../services/conversationService';
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -123,7 +60,7 @@ const Chats = ({ navigation }) => {
           ToastAndroid.show('Press back again to exit', ToastAndroid.SHORT);
         }
 
-        return true; 
+        return true;
       };
 
       const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
@@ -146,6 +83,15 @@ const Chats = ({ navigation }) => {
     if (activeFilter === 'Unread') return matchesSearch && chat.unread > 0;
     return matchesSearch;
   });
+
+  const handleDeleteChat = async (item) => {
+    try {
+      await deleteConversationForUser(item.id, user?.id);
+      refetch(); 
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -233,6 +179,7 @@ const Chats = ({ navigation }) => {
             <ChatItem
               item={item}
               onPress={() => navigation.navigate('chat-screen', { conversation: item })}
+              onDelete={() => handleDeleteChat(item)}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -255,6 +202,140 @@ const Chats = ({ navigation }) => {
         onPress={() => navigation.navigate('add-chat')}>
         <Icon name="message-plus" size={24} color={Colors.white} />
       </TouchableOpacity>
+    </View>
+  );
+};
+
+const ChatItem = ({ item, onPress, onDelete }) => {
+  const hasUnread = item.unread > 0;
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short' });
+    return date.toLocaleDateString([], { day: '2-digit', month: 'short' });
+  };
+
+  return (
+    <SwipeableRow
+      onDelete={onDelete}
+    >
+      <TouchableOpacity style={[styles.chatItem, { backgroundColor: Colors.background }]} onPress={onPress} activeOpacity={0.7}>
+        <View style={styles.avatarWrapper}>
+          {item.avatar_url ? (
+            <Image source={{ uri: item.avatar_url }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Icon name={item.type === 'group' ? 'account-group' : 'account'} size={24} color={Colors.white} />
+            </View>
+          )}
+          {item.is_online && <View style={styles.onlineDot} />}
+          {item.type === 'group' && (
+            <View style={styles.groupBadge}>
+              <Icon name="account-group" size={9} color={Colors.white} />
+            </View>
+          )}
+        </View>
+
+        <View style={styles.chatContent}>
+          <View style={styles.chatHeader}>
+            <Text style={[styles.chatName, hasUnread && styles.chatNameBold]} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={[styles.chatTime, hasUnread && styles.chatTimeUnread]}>
+              {formatTime(item.last_message_at)}
+            </Text>
+          </View>
+          <View style={styles.chatFooter}>
+            <View style={styles.lastMessageRow}>
+              {item.sent && (
+                <Icon name="check-all" size={14} color={Colors.primary} style={{ marginRight: 3 }} />
+              )}
+              <Text style={[styles.lastMessage, hasUnread && styles.lastMessageBold]} numberOfLines={1}>
+                {item.last_message || 'No messages yet'}
+              </Text>
+            </View>
+            {hasUnread ? (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadText}>{item.unread > 99 ? '99+' : item.unread}</Text>
+              </View>
+            ) : (
+              <View style={styles.unreadPlaceholder} />
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    </SwipeableRow>
+  );
+};
+
+import { Animated, PanResponder } from 'react-native';
+
+const SWIPE_THRESHOLD = -80;
+
+const SwipeableRow = ({ children, onDelete }) => {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const currentOffset = useRef(0);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dx) > 10 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+
+      onPanResponderMove: (_, gestureState) => {
+        const next = currentOffset.current + gestureState.dx;
+        // clamp between fully-open (-100) and closed (0)
+        translateX.setValue(Math.max(-100, Math.min(0, next)));
+      },
+
+      onPanResponderRelease: (_, gestureState) => {
+        const next = currentOffset.current + gestureState.dx;
+        const shouldOpen = next < SWIPE_THRESHOLD;
+
+        Animated.spring(translateX, {
+          toValue: shouldOpen ? -90 : 0,
+          useNativeDriver: true,
+          bounciness: 4,
+        }).start();
+
+        currentOffset.current = shouldOpen ? -90 : 0;
+      },
+    })
+  ).current;
+
+  const resetSwipe = () => {
+    Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
+    currentOffset.current = 0;
+  };
+
+  return (
+    <View style={{ justifyContent: 'center' }}>
+      {/* Delete button revealed behind the row */}
+      <View style={styles.deleteActionWrapper}>
+        <TouchableOpacity
+          style={styles.deleteAction}
+          onPress={() => {
+            resetSwipe();
+            onDelete();
+          }}
+        >
+          <Icon name="delete-outline" size={24} color={Colors.white} />
+          <Text style={styles.deleteActionText}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* The actual row, slides left on swipe */}
+      <Animated.View
+        style={{ transform: [{ translateX }] }}
+        {...panResponder.panHandlers}
+      >
+        {children}
+      </Animated.View>
     </View>
   );
 };
@@ -615,6 +696,26 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
+  },
+
+  deleteActionWrapper: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 90,
+  },
+  deleteAction: {
+    flex: 1,
+    backgroundColor: Colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteActionText: {
+    color: Colors.white,
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    marginTop: 4,
   },
 });
 

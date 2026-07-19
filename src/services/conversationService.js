@@ -19,6 +19,7 @@ export const fetchDirectConversations = async (userId) => {
     `)
     .eq('user_id', userId)
     .eq('conversations.type', 'direct')
+    .is('deleted_at', null)
     .order('conversation_id', { ascending: false });
 
   if (error) throw error;
@@ -148,4 +149,15 @@ export const createDirectConversation = async (currentUserId, otherUser) => {
     name: otherUser.full_name,
     avatar_url: otherUser.avatar_url,
   };
+};
+
+
+export const deleteConversationForUser = async (conversationId, userId) => {
+  const { error } = await supabase
+    .from('conversation_members')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
 };

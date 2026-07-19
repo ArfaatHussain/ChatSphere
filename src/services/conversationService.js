@@ -84,7 +84,8 @@ export const fetchAvailableUsers = async (currentUserId) => {
     .from('conversation_members')
     .select('conversation_id, conversations!inner(type)')
     .eq('user_id', currentUserId)
-    .eq('conversations.type', 'direct');
+    .eq('conversations.type', 'direct')
+    .is('deleted_at', null);
 
   if (myConvosError) throw myConvosError;
 
@@ -119,12 +120,61 @@ export const fetchAvailableUsers = async (currentUserId) => {
 
 
 /**
- * Creates a new direct conversation between the current user and otherUser.
- * fetchAvailableUsers already excludes users who already have a direct
- * conversation with currentUserId, so we can create directly without checking.
+ * Creates a direct conversation between currentUserId and otherUser, OR
+ * revives a previously-deleted one if it already exists (avoids duplicates
+ * when a user re-adds someone they'd deleted before).
  */
 export const createDirectConversation = async (currentUserId, otherUser) => {
-  // 1. Create the conversation
+  // 1. Check if ANY direct conversation already exists between these two users
+  //    (including ones the current user had previously deleted)
+  const { data: myConvos, error: myConvosError } = await supabase
+    .from('conversation_members')
+    .select('conversation_id, conversations!inner(type)')
+    .eq('user_id', currentUserId)
+    .eq('conversations.type', 'direct');
+
+  if (myConvosError) throw myConvosError;
+
+  const myConvoIds = (myConvos || []).map((c) => c.conversation_id);
+
+  if (myConvoIds.length > 0) {
+    const { data: sharedConvo, error: sharedError } = await supabase
+      .from('conversation_members')
+      .select('conversation_id')
+      .eq('user_id', otherUser.id)
+      .in('conversation_id', myConvoIds)
+      .maybeSingle();
+
+    if (sharedError) throw sharedError;
+
+    if (sharedConvo) {
+      // 2. Conversation already exists — just un-hide it for the current user
+      const { error: reviveError } = await supabase
+        .from('conversation_members')
+        .update({ deleted_at: null })
+        .eq('conversation_id', sharedConvo.conversation_id)
+        .eq('user_id', currentUserId);
+
+      if (reviveError) throw reviveError;
+
+      const { data: existingConvo, error: fetchError } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('id', sharedConvo.conversation_id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      return {
+        id: existingConvo.id,
+        type: existingConvo.type,
+        name: otherUser.full_name,
+        avatar_url: otherUser.avatar_url,
+      };
+    }
+  }
+
+  // 3. No existing conversation at all — create fresh
   const { data: newConvo, error: createError } = await supabase
     .from('conversations')
     .insert({ type: 'direct', created_by: currentUserId })
@@ -133,7 +183,6 @@ export const createDirectConversation = async (currentUserId, otherUser) => {
 
   if (createError) throw createError;
 
-  // 2. Add both users as members
   const { error: membersError } = await supabase
     .from('conversation_members')
     .insert([

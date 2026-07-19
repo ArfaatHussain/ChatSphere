@@ -1,18 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo, } from 'react';
 import {
-    View,
-    Text,
-    Image,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    TextInput,
-    StatusBar,
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Keyboard,
-    TouchableWithoutFeedback
+    View, Text, Image, StyleSheet, FlatList, TouchableOpacity,
+    TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
 import Feather from 'react-native-vector-icons/Feather';
@@ -24,6 +13,7 @@ import { fetchDirectChatUser, markConversationAsRead } from '../../services/conv
 
 // Module-level cache — persists across screen mounts/unmounts
 const otherUserCache = new Map();
+
 export default function ChatScreen({ navigation, route }) {
     const { conversation } = route.params;
     const currentUser = getItem(StorageKeys.USER_DATA);
@@ -33,15 +23,15 @@ export default function ChatScreen({ navigation, route }) {
 
     const [inputText, setInputText] = useState('');
 
+    const scrollViewRef = useRef(null);
+
     useEffect(() => {
-        if (conversation.type === 'direct') {
-            fetchDirectChatUser(conversation.id, currentUserId)
-                .then((user) => {
-                    otherUserCache.set(conversation.id, user); // update cache
-                    setOtherUser(user);
-                })
-                .catch((err) => console.error('Failed to load user status:', err));
-        }
+        fetchDirectChatUser(conversation.id, currentUserId)
+            .then((user) => {
+                otherUserCache.set(conversation.id, user); // update cache
+                setOtherUser(user);
+            })
+            .catch((err) => console.error('Failed to load user status:', err));
     }, [conversation.id, currentUserId]);
 
     const { messages, loading, error } = useMessages(conversation.id, currentUserId);
@@ -53,6 +43,18 @@ export default function ChatScreen({ navigation, route }) {
             );
         }
     }, [conversation.id, currentUserId, messages.length]);
+
+    useEffect(() => {
+        if (!loading && messages.length > 0) {
+            // small timeout lets layout settle before scrolling
+            setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: false });
+            }, 50);
+        }
+    }, [loading, messages.length]);
+
+    // Reverse once, memoized — FlatList `inverted` expects newest-first order
+    const invertedMessages = useMemo(() => [...messages].reverse(), [messages]);
 
     const formatLastSeen = (lastSeen) => {
         if (!lastSeen) return 'Offline';
@@ -95,96 +97,99 @@ export default function ChatScreen({ navigation, route }) {
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                <View style={{ flex: 1 }} >
+            <View style={{ flex: 1 }} >
 
 
-                    <View style={styles.header}>
-                        <TouchableOpacity style={styles.iconBtn}
-                            onPress={() => navigation.goBack()}
-                        >
-                            <AntDesign name="left" size={22} color={Colors.primary} />
-                        </TouchableOpacity>
+                <View style={styles.header}>
+                    <TouchableOpacity style={styles.iconBtn}
+                        onPress={() => navigation.goBack()}
+                    >
+                        <AntDesign name="left" size={22} color={Colors.primary} />
+                    </TouchableOpacity>
 
-                        <View style={styles.avatarWrapper}>
-                            <Image source={{ uri: conversation.avatar_url }} style={styles.avatar} />
-                            {otherUser?.is_online && <View style={styles.onlineDot} />}
-                        </View>
-
-                        <View style={styles.headerTextWrapper}>
-                            <Text style={styles.headerName} numberOfLines={1}>
-                                {conversation.name}
-                            </Text>
-                            <Text style={styles.headerStatus}>
-                                {otherUser?.is_online ? 'Active now' : formatLastSeen(otherUser?.last_seen)}
-                            </Text>
-                        </View>
-
-                        <View style={styles.headerActions}>
-                            <TouchableOpacity style={[styles.iconBtn, { marginRight: Spacing.xl }]}>
-                                <AntDesign name="phone" size={20} color={Colors.primary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.iconBtn}>
-                                <AntDesign name="videocamera" size={20} color={Colors.primary} />
-                            </TouchableOpacity>
-                        </View>
+                    <View style={styles.avatarWrapper}>
+                        <Image source={{ uri: conversation.avatar_url }} style={styles.avatar} />
+                        {otherUser?.is_online && <View style={styles.onlineDot} />}
                     </View>
 
-                    {/* ---------- Messages ---------- */}
-                    {loading ? (
-                        <View style={styles.centerState}>
-                            <ActivityIndicator size="small" color={Colors.primary} />
-                        </View>
-                    ) : error ? (
-                        <View style={styles.centerState}>
-                            <Text style={{ color: Colors.error }}>{error}</Text>
-                        </View>
-                    ) : (
-                        <ScrollView
-                            style={styles.messagesArea}
-                            contentContainerStyle={styles.messagesContent}
-                            showsVerticalScrollIndicator={false}
-                        >
-                            {messages.map((msg) => (
-                                <MessageBubble
-                                    key={msg.id}
-                                    message={msg}
-                                    avatar={conversation.avatar_url}
-                                />
-                            ))}
-                        </ScrollView>
-                    )}
+                    <View style={styles.headerTextWrapper}>
+                        <Text style={styles.headerName} numberOfLines={1}>
+                            {conversation.name}
+                        </Text>
+                        <Text style={styles.headerStatus}>
+                            {otherUser?.is_online ? 'Active now' : formatLastSeen(otherUser?.last_seen)}
+                        </Text>
+                    </View>
 
-                    {/* ---------- Input Bar ---------- */}
-                    <View style={styles.inputBar}>
-                        <TouchableOpacity style={styles.inputIconBtn}>
-                            <Feather name="image" size={24} color={Colors.grey} />
+                    <View style={styles.headerActions}>
+                        <TouchableOpacity style={[styles.iconBtn, { marginRight: Spacing.xl }]}>
+                            <AntDesign name="phone" size={20} color={Colors.primary} />
                         </TouchableOpacity>
-
-                        <View style={styles.textInputWrapper}>
-                            <TextInput
-                                style={styles.textInput}
-                                placeholder="Type a message..."
-                                placeholderTextColor={Colors.grey}
-                                value={inputText}
-                                onChangeText={setInputText}
-                            />
-                        </View>
-
-                        <TouchableOpacity style={styles.inputIconBtn}>
-                            <Feather name="mic" size={24} color={Colors.grey} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.sendBtn, !inputText.trim() && { opacity: 0.5 }]}
-                            onPress={handleSend}
-                            disabled={!inputText.trim()}
-                        >
-                            <Feather name="send" size={18} color={Colors.white} />
+                        <TouchableOpacity style={styles.iconBtn}>
+                            <AntDesign name="videocamera" size={20} color={Colors.primary} />
                         </TouchableOpacity>
                     </View>
                 </View>
-            </TouchableWithoutFeedback>
+
+                {/* ---------- Messages ---------- */}
+                {loading ? (
+                    <View style={styles.centerState}>
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                    </View>
+                ) : error ? (
+                    <View style={styles.centerState}>
+                        <Text style={{ color: Colors.error }}>{error}</Text>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={invertedMessages}
+                        keyExtractor={(item) => String(item.id)}
+                        inverted
+                        style={styles.messagesArea}
+                        contentContainerStyle={styles.messagesContent}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                        renderItem={({ item }) => (
+                            <MessageBubble message={item} avatar={conversation.avatar_url} />
+                        )}
+
+                        initialNumToRender={15}
+                        maxToRenderPerBatch={10}
+                        windowSize={10}
+                    />
+                )}
+
+                {/* ---------- Input Bar ---------- */}
+                <View style={styles.inputBar}>
+                    <TouchableOpacity style={styles.inputIconBtn}>
+                        <Feather name="image" size={24} color={Colors.grey} />
+                    </TouchableOpacity>
+
+                    <View style={styles.textInputWrapper}>
+                        <TextInput
+                            style={styles.textInput}
+                            placeholder="Type a message..."
+                            placeholderTextColor={Colors.grey}
+                            value={inputText}
+                            onChangeText={setInputText}
+                        />
+                    </View>
+
+                    <TouchableOpacity style={styles.inputIconBtn}>
+                        <Feather name="mic" size={24} color={Colors.grey} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.sendBtn, !inputText.trim() && { opacity: 0.5 }]}
+                        onPress={handleSend}
+                        disabled={!inputText.trim()}
+                    >
+                        <Feather name="send" size={18} color={Colors.white} />
+                    </TouchableOpacity>
+                </View>
+            </View>
+
         </KeyboardAvoidingView>
     );
 }

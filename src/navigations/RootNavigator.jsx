@@ -8,6 +8,7 @@ import { getItem, StorageKeys } from '../utils/storage';
 import GroupChatScreen from '../screens/groups/GroupChatScreen';
 import GroupDetail from '../screens/groups/GroupDetail';
 import CreateGroup from '../screens/groups/CreateGroup';
+import NewChat from '../screens/chat/NewChat';
 const Stack = createNativeStackNavigator();
 
 const RootNavigator = () => {
@@ -21,11 +22,13 @@ const RootNavigator = () => {
     >
       <Stack.Screen name="login" component={LoginScreen} />
       <Stack.Screen name="register" component={RegisterScreen} />
-      <Stack.Screen name="chat-screen" component={ChatScreen} />
       <Stack.Screen name="main" component={BottomTabNavigator} />
+      <Stack.Screen name="chat-screen" component={ChatScreen} />
       <Stack.Screen name="GroupChatScreen" component={GroupChatScreen} />
       <Stack.Screen name="GroupDetail" component={GroupDetail} />
       <Stack.Screen name="CreateGroup" component={CreateGroup} />
+      <Stack.Screen name="add-chat" component={NewChat} />
+
     </Stack.Navigator>
   );
 };

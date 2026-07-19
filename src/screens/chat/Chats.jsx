@@ -252,7 +252,7 @@ const Chats = ({ navigation }) => {
       {/* ── FAB ── */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate('NewChat')}>
+        onPress={() => navigation.navigate('add-chat')}>
         <Icon name="message-plus" size={24} color={Colors.white} />
       </TouchableOpacity>
     </View>
